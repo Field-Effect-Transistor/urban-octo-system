@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     // 3. Запит до ШІ (використовуємо твою модель зі списку)
     const result = await streamText({
       // @ts-expect-error cuzz i dont give a fuck
-      model: google('gemini-3-flash-preview'), 
+      model: google('gemini-2.5-flash-lite'), 
       messages: coreMessages,
       system: `Ти професійний рекрутер. Посада: ${position}. Рівень: ${level}. 
                Став рівно ОДНЕ питання за раз. Чекай на відповідь. Спілкуйся українською.`,
