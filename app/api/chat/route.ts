@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     // 2. Запит до AI з моделлю 'latest'
     const result = await streamText({
-      // @ts-ignore
+      // @ts-expect-error cuzz i dont give a shit
       model: google('gemini-3-flash-preview'), 
       messages: convertToCoreMessages(messages),
       system: `Ти рекрутер. Посада: ${position}, Рівень: ${level}. Став по 1 питанню.`,
