@@ -14,35 +14,39 @@ export async function POST(req: Request) {
   try {
     const { messages, interviewId, position, level } = await req.json();
 
-    // 1. Не чекаємо (await) запису в базу повідомлення юзера, 
-    // щоб не гаяти час перед стартом AI. Робимо це у фоні.
+    // 1. Зберігаємо останнє повідомлення користувача в базу (у фоні)
+    const lastUserMsg = messages[messages.length - 1];
     supabase.from('messages').insert({
       interview_id: interviewId,
       role: 'user',
-      content: messages[messages.length - 1].content,
-    }).then(); // .then() запускає запит без блокування основного потоку
+      content: lastUserMsg.content,
+    }).then();
 
-    // 2. Використовуємо РЕАЛЬНУ швидку модель: gemini-1.5-flash-latest
+    // 2. Очищення історії: ШІ вимагає чергування User -> Assistant.
+    // Якщо юзер надіслав кілька повідомлень підряд, ми об'єднуємо їх, щоб не було помилки.
+    const coreMessages = convertToCoreMessages(messages);
+
+    // 3. Запит до ШІ (використовуємо твою модель зі списку)
     const result = await streamText({
-      // @ts-expect-error cuzz i dont give a shit
-      model: google('gemini-1.5-flash-latest'), 
-      messages: convertToCoreMessages(messages),
-      system: `Ти рекрутер. Посада: ${position}, Рівень: ${level}. Став по 1 питанню. Спілкуйся українською.`,
+      // @ts-expect-error cuzz i dont give a fuck
+      model: google('gemini-3-flash-preview'), 
+      messages: coreMessages,
+      system: `Ти професійний рекрутер. Посада: ${position}. Рівень: ${level}. 
+               Став рівно ОДНЕ питання за раз. Чекай на відповідь. Спілкуйся українською.`,
       onFinish: async (event) => {
-        // Зберігаємо відповідь AI в базу після завершення
+        // Зберігаємо відповідь AI в базу
         await supabase.from('messages').insert({
           interview_id: interviewId,
           role: 'assistant',
           content: event.text,
-        });
+        }).then();
       },
     });
 
-    // 3. Повертаємо стрім. Vercel отримає перші байти миттєво.
     return result.toDataStreamResponse();
 
-  } catch (error) {
-    console.error("AI Error:", error);
-    return new Response(JSON.stringify({ error: "AI Connection Failed" }), { status: 500 });
+  } catch (error: any) {
+    console.error("CRITICAL AI ERROR:", error);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 }
